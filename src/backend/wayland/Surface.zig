@@ -18,14 +18,13 @@ transform: wl.Output.Transform = .normal,
 format: wl.Shm.Format = .argb8888,
 width: i32 = 100,
 height: i32 = 100,
-close: bool = false,
 configured: bool = false,
 client: *Client,
+close: bool = false,
 fd: i32 = 0,
+index: usize = 0,
 
 // Supposed to be hidden
-newWidth: i32 = 0,
-newHeight: i32 = 0,
 maxSize: i32 = 0,
 const Self = @This();
 
@@ -100,8 +99,7 @@ fn xdgToplevelListener(toplevel: *xdg.Toplevel, event: xdg.Toplevel.Event, data:
             data.configured = false;
         },
         .close => {
-            data.close = true; // Should add a callback here to annoy users.
-            data.configured = false;
+            data.close = true;
         },
         .configure_bounds => {},
         .wm_capabilities => {},
@@ -185,6 +183,10 @@ pub fn init(allocator: std.mem.Allocator, client: *Client) !*Self {
     srfc.commit();
     ptr.buffer.?.setListener(*Self, bufferRelease, ptr);
     _ = client.display.roundtrip();
+
+    ptr.index = client.surfaces.items.len;
+    _ = try client.surfaces.append(allocator, ptr);
+
     return ptr;
 }
 
@@ -195,6 +197,13 @@ pub fn deinit(self: *Self) void {
     self.xdgToplevel.destroy();
     self.xdgSurface.destroy();
     self.surface.destroy();
+
+    const index = self.index;
+
+    _ = self.client.surfaces.swapRemove(index);
+    if (self.client.surfaces.items.len != 0)
+        self.client.surfaces.items[index].index = index;
+
     const allocator = self.allocator;
     allocator.destroy(self);
 }

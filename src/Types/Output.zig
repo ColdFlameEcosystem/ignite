@@ -6,10 +6,10 @@ const Self = @This();
 const Backend = @import("../backend/backend.zig");
 
 // Output Global State. One for the compositor
-global: *wl.Global,
+global: *const wl.Global,
 allocator: mem.Allocator,
-server: *Server,
-backend: *Backend,
+server: *const Server,
+backend: *const Backend,
 coutputs: ArrayList(*COutput),
 // Client Output. For every client.
 pub const COutput = struct {
@@ -25,7 +25,8 @@ fn outputDestroy(output: *wl.Output, coutput: *COutput) void {
     const index = coutput.index; // Get the current index of the coutput in the list
 
     _ = coutput.state.coutputs.swapRemove(index); // Remove this coutput from the list and swap it from the end one.
-    coutput.state.coutputs.items[index].index = index; // Update the index of the output which is at this position.
+    if (coutput.state.coutputs.items.len != 0)
+        coutput.state.coutputs.items[index].index = index;
 
     const allocator = coutput.state.allocator;
     allocator.destroy(coutput); // Destroy the output
@@ -53,22 +54,25 @@ fn bind(client: *wl.Client, state: *Self, version: u32, id: u32) void {
         .index = state.coutputs.items.len,
     };
 
-    state.coutputs.append(state.allocator, coutput);
+    _ = state.coutputs.append(state.allocator, coutput) catch return;
 
-    output.setHandler(*COutput, outputRequestHandle, outputDestroy);
+    output.setHandler(*COutput, outputRequestHandle, outputDestroy, coutput);
 
     output.sendName("WL-1");
     output.sendDescription("A cool dummy output");
 
-    // Now here we actually get things from our wayland client and send it here.
-    // output.sendDone();
+    output.sendGeometry(0, 0, -1, -1, .unknown, "Coldflame", "Ferrofluid", .normal);
+    // Send the dummy width x height here not this 100x100
+    output.sendMode(.{ .current = true, .preferred = true }, 100, 100, 60);
+    output.sendScale(1);
+    output.sendDone();
 }
 
-pub fn init(allocator: mem.Allocator, server: *Server, backend: *Backend) !*Self {
+pub fn init(allocator: mem.Allocator, server: *const Server, backend: *const Backend) !*Self {
     const ptr = try allocator.create(Self);
     errdefer allocator.destroy(ptr);
 
-    const global = wl.Global.create(server.server, wl.Output, 4, *Self, ptr, bind);
+    const global = try wl.Global.create(server.server, wl.Output, 4, *Self, ptr, bind);
     ptr.* = .{
         .global = global,
         .allocator = allocator,

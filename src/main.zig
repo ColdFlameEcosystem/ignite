@@ -12,6 +12,8 @@ pub fn main(init: std.process.Init) !void {
     const window = try backend.createWindow();
     defer window.deinit();
 
-    while (window.shouldClose() == false)
-        backend.poll();
+    const server = try Server.init(gpa, &backend);
+    defer server.deinit();
+
+    _ = try server.run();
 }

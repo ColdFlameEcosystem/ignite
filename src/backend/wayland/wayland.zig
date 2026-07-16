@@ -11,9 +11,19 @@ fn deinitWindow(ptr: *const anyopaque) void {
     s.deinit();
 }
 
-fn windowShouldClose(ptr: *const anyopaque) bool {
-    const s: *Surface = @ptrCast(@alignCast(@constCast(ptr)));
-    return s.close;
+fn shouldClose(ptr: *const anyopaque) bool {
+    const c: *Client = @ptrCast(@alignCast(@constCast(ptr)));
+
+    var close = c.surfaces.items.len;
+    for (c.surfaces.items) |s| {
+        if (s.close == true) close -= 1;
+    }
+
+    if (close == 0) {
+        return true;
+    } else {
+        return false;
+    }
 }
 
 fn createWindow(ptr: *const anyopaque) !Window {
@@ -26,7 +36,6 @@ fn createWindow(ptr: *const anyopaque) !Window {
         .ptr = @ptrCast(srfc),
         .vtable = .{
             .deinit = deinitWindow,
-            .shouldClose = windowShouldClose,
         },
     };
 }
@@ -38,9 +47,27 @@ pub fn init(allocator: mem.Allocator) !Backend {
         .vtable = .{
             .deinit = deinit,
             .createWindow = createWindow,
-            .poll = poll,
+            .dispatch = dispatch,
+            .flush = flush,
+            .getFd = getFd,
+            .shouldTerminate = shouldClose,
         },
     };
+}
+
+fn getFd(ptr: *const anyopaque) i32 {
+    const c: *Client = @ptrCast(@alignCast(@constCast(ptr)));
+    return @intCast(c.display.getFd());
+}
+
+fn dispatch(ptr: *const anyopaque) void {
+    const c: *Client = @ptrCast(@alignCast(@constCast(ptr)));
+    _ = c.display.dispatch();
+}
+
+fn flush(ptr: *const anyopaque) void {
+    const c: *Client = @ptrCast(@alignCast(@constCast(ptr)));
+    _ = c.display.flush();
 }
 
 fn deinit(ptr: *const anyopaque) void {

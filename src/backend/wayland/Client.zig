@@ -2,6 +2,8 @@ const wl = @import("wayland").client.wl;
 const xdg = @import("wayland").client.xdg;
 const zxdg = @import("wayland").client.zxdg;
 const mem = @import("std").mem;
+const ArrayList = @import("std").ArrayList;
+const Surface = @import("Surface.zig");
 
 display: *wl.Display,
 registry: *wl.Registry,
@@ -11,6 +13,7 @@ xdgDecorManager: ?*zxdg.DecorationManagerV1 = null,
 shm: ?*wl.Shm = null,
 seat: ?*wl.Seat = null,
 allocator: mem.Allocator,
+surfaces: ArrayList(*Surface),
 
 const Self = @This();
 
@@ -58,6 +61,7 @@ pub fn init(allocator: mem.Allocator) !*Self {
         .display = disp,
         .registry = registry,
         .allocator = allocator,
+        .surfaces = .empty,
     };
     registry.setListener(*Self, registryListener, ptr);
 
@@ -81,6 +85,8 @@ pub fn deinit(self: *Self) void {
     if (self.compositor) |c| c.destroy();
     self.registry.destroy();
     self.display.disconnect();
+
     const allocator = self.allocator;
+    self.surfaces.deinit(allocator);
     allocator.destroy(self);
 }
